@@ -16,3 +16,13 @@ print(df["purpose"].value_counts())
 
 print("\nPercentage of loans not fully paid:")
 print(df["not.fully.paid"].mean() * 100)
+
+import matplotlib.pyplot as plt
+
+# Scatter plot: FICO vs Interest Rate
+plt.scatter(df["fico"], df["int.rate"])
+plt.xlabel("FICO Score")
+plt.ylabel("Interest Rate (%)")
+plt.title("FICO Score vs Interest Rate")
+
+plt.show(
