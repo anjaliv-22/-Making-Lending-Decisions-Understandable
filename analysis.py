@@ -1,28 +1,32 @@
 import pandas as pd
 
 # Load the dataset
-df = pd.read_csv("data/loans.csv")
+LC = pd.read_csv("loan_data.csv")
 
 # Preview the data
 print("First 5 rows:")
-print(df.head())
+print(LC.head())
 
 # Basic analysis
 print("\nAverage FICO score:")
-print(df["fico"].mean())
+print(LC["fico"].mean())
 
 print("\nLoan purpose counts:")
-print(df["purpose"].value_counts())
+print(LC["purpose"].value_counts())
 
 print("\nPercentage of loans not fully paid:")
-print(df["not.fully.paid"].mean() * 100)
+print(LC["not.fully.paid"].mean() * 100)
 
 import matplotlib.pyplot as plt
 
-# Scatter plot: FICO vs Interest Rate
-plt.scatter(df["fico"], df["int.rate"])
+LC.boxplot(by = 'purpose', column = 'fico')
+
+sns.countplot(data=LC, x='not.fully.paid', palette='coolwarm')
+
+'''# Scatter plot: FICO vs Interest Rate
+plt.scatter(LC["fico"], LC["int.rate"])
 plt.xlabel("FICO Score")
 plt.ylabel("Interest Rate (%)")
 plt.title("FICO Score vs Interest Rate")
 
-plt.show(
+plt.show()'''
