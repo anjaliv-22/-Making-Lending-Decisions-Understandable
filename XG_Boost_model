@@ -1,2 +1,144 @@
-!pip install optuna
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import os
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score, ConfusionMatrixDisplay
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, roc_curve
 
+!git clone https://github.com/anjaliv-22/-Making-Lending-Decisions-Understandable.git
+
+LC = pd.read_csv("-Making-Lending-Decisions-Understandable/loan_data.csv")
+LC.columns = LC.columns.str.strip()
+LC['int.rate'] = LC['int.rate'].astype(str).str.rstrip('%').astype(float) / 100
+
+
+X = LC[['fico', 'int.rate', 'installment', 'log.annual.inc']]
+y = LC['not.fully.paid']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+num_negative = (y_train == 0).sum()
+
+num_positive = (y_train == 1).sum()
+
+spw = num_negative / num_positive
+
+print (spw)
+
+
+import optuna
+
+import xgboost as xgb
+
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+
+# Calculate scale_pos_weight (spw)
+
+# (Number of non-defaulted loans / Number of defaulted loans)
+
+num_negative = (y_train == 0).sum()
+
+num_positive = (y_train == 1).sum()
+
+spw = num_negative / num_positive
+
+
+
+print(f"Scale Position Weight (spw) is: {spw:.3f}")
+
+
+
+def make_objective(X_train, y_train, scale_pos_weight, cv):
+
+    def objective(trial):
+
+        params = {
+
+
+
+            'n_estimators':      trial.suggest_categorical('n_estimators', [50, 100, 250, 500]),
+
+            'max_depth':         trial.suggest_categorical('max_depth', [3, 5, 8]),
+
+            'learning_rate':     trial.suggest_categorical('learning_rate', [0.01, 0.05, 0.1]),
+
+
+
+            # Sampling parameters (adds randomness to prevent overfitting)
+
+            'subsample':         trial.suggest_categorical('subsample', [0.6, 0.8, 1.0]),
+
+            'colsample_bytree':  trial.suggest_categorical('colsample_bytree', [0.6, 0.8, 1.0]),
+
+            'min_child_weight':  trial.suggest_int('min_child_weight', 1, 10),
+
+
+
+            # Regularisation parameters
+
+            'gamma':             trial.suggest_float('gamma', 0.0, 0.5),
+
+            'reg_alpha':         trial.suggest_float('reg_alpha', 1e-8, 10.0, log=True),
+
+            'reg_lambda':        trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
+
+
+
+            'scale_pos_weight':  spw,  # To handle class imbalance
+
+            'random_state':      42,
+
+            'verbosity':         0,
+
+            'eval_metric':       'logloss',
+
+        }
+
+
+
+        # Train and validate using K-Fold CV
+
+        model = xgb.XGBClassifier(**params)
+
+        scores = cross_val_score(model, X_train, y_train, cv=cv, scoring='roc_auc', n_jobs=-1)
+
+        return scores.mean()
+
+    return objective
+
+
+
+# --- Running the study ---
+
+cv = StratifiedKFold(5, shuffle=True, random_state=42)
+
+study = optuna.create_study(direction='maximize')
+
+study.optimize(make_objective(X_train, y_train, spw, cv), n_trials=100)
+
+
+
+print("Best XGB Parameters:", study.best_params)
+
+print("Best ROC-AUC:", study.best_value)
+
+# params1: {'n_estimators': 250, 'max_depth': 3, 'learning_rate': 0.01, 'subsample': 0.6, 'colsample_bytree': 1.0, 'min_child_weight': 6, 'gamma': 0.12378956137115626, 'reg_alpha': 1.207359257869829e-07, 'reg_lambda': 0.00019260709364697732}
+params1: {'n_estimators': 250, 'max_depth': 3, 'learning_rate': 0.01, 'subsample': 0.8, 'colsample_bytree': 1.0, 'min_child_weight': 10, 'gamma': 0.020041802645660495, 'reg_alpha': 6.881840720900052, 'reg_lambda': 4.820546244042033e-06}
+
+Bestmodel = xgb.XGBClassifier(**params1)
+
+Bestmodel.fit(X_train, y_train)
+y_pred_xgb = Bestmodel.predict(X_test)
+
+accuracy = accuracy_score(y_test, y_pred_xgb)
+print(accuracy)
+
+print(classification_report(y_test, y_pred_xgb))
+
+cm = confusion_matrix(y_test, y_pred_xgb)
+disp = ConfusionMatrixDisplay(cm, display_labels=[0,1])
+disp.plot(cmap='Blues')
+plt.title("Confusion Matrix for XGB Model")
+plt.show()
